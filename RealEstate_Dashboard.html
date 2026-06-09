@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Estate View 360 — Analysis Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Segoe UI',Arial,sans-serif;background:#1a0a2e;color:#fff;min-height:100vh}
+  .topbar{background:linear-gradient(135deg,#2e0a5e,#4a0e8f);padding:18px 32px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(255,255,255,0.1)}
+  .topbar h1{font-size:20px;font-weight:700;letter-spacing:1px;color:#d4b8ff}
+  .topbar span{font-size:12px;color:rgba(255,255,255,0.5)}
+  .filters{background:rgba(255,255,255,0.05);padding:12px 32px;display:flex;gap:16px;align-items:center;border-bottom:1px solid rgba(255,255,255,0.08)}
+  .filters label{font-size:12px;color:rgba(255,255,255,0.5);margin-right:4px}
+  .filters select{background:rgba(255,255,255,0.1);color:#fff;border:1px solid rgba(255,255,255,0.2);border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer;outline:none}
+  .filters select option{background:#2a0a5e;color:#fff}
+  .main{padding:24px 32px}
+  .kpi-row{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:24px}
+  .kpi{background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.1);border-radius:12px;padding:16px 20px;position:relative;overflow:hidden}
+  .kpi::before{content:'';position:absolute;top:0;left:0;width:3px;height:100%;background:linear-gradient(180deg,#9b4dff,#6a1fd0)}
+  .kpi .label{font-size:11px;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:6px}
+  .kpi .value{font-size:22px;font-weight:700;color:#d4b8ff}
+  .kpi .sub{font-size:11px;color:rgba(255,255,255,0.4);margin-top:4px}
+  .charts-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px}
+  .chart-card{background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:14px;padding:20px}
+  .chart-card.full{grid-column:1/-1}
+  .chart-title{font-size:13px;font-weight:600;color:#c0a0ff;margin-bottom:16px;text-transform:uppercase;letter-spacing:0.6px}
+  .chart-wrap{position:relative;width:100%}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <h1>🏠 Estate View 360 — Analysis Dashboard</h1>
+  <span id="subtitle">All Cities · All Years · 500 Transactions</span>
+</div>
+
+<div class="filters">
+  <label>City</label>
+  <select id="fCity" onchange="updateCharts()">
+    <option value="all">All Cities</option>
+    <option>Lagos</option><option>Abuja</option><option>Port Harcourt</option>
+    <option>Ibadan</option><option>Kano</option><option>Enugu</option><option>Benin City</option>
+  </select>
+  <label>Year</label>
+  <select id="fYear" onchange="updateCharts()">
+    <option value="all">All Years</option>
+    <option>2021</option><option>2022</option><option>2023</option><option>2024</option><option>2025</option>
+  </select>
+  <label>Type</label>
+  <select id="fType" onchange="updateCharts()">
+    <option value="all">Sale &amp; Rent</option>
+    <option>Sale</option><option>Rent</option>
+  </select>
+  <label>Property</label>
+  <select id="fProp" onchange="updateCharts()">
+    <option value="all">All Types</option>
+    <option>Apartment</option><option>Duplex</option><option>Bungalow</option>
+    <option>Terrace House</option><option>Semi-Detached</option><option>Detached House</option><option>Penthouse</option>
+  </select>
+</div>
+
+<div class="main">
+  <div class="kpi-row">
+    <div class="kpi"><div class="label">Total Revenue</div><div class="value" id="kRevenue">₦22.2B</div><div class="sub">All transactions</div></div>
+    <div class="kpi"><div class="label">Transactions</div><div class="value" id="kCount">500</div><div class="sub">Total deals</div></div>
+    <div class="kpi"><div class="label">Completion Rate</div><div class="value" id="kComplete">71.2%</div><div class="sub">Closed deals</div></div>
+    <div class="kpi"><div class="label">Avg Deal Price</div><div class="value" id="kAvg">₦44.4M</div><div class="sub">Per transaction</div></div>
+    <div class="kpi"><div class="label">Avg Days on Market</div><div class="value" id="kDays">92</div><div class="sub">Days to close</div></div>
+  </div>
+
+  <div class="charts-grid">
+    <div class="chart-card">
+      <div class="chart-title">Revenue by City</div>
+      <div class="chart-wrap" style="height:260px"><canvas id="cCity" role="img" aria-label="Bar chart of total revenue by Nigerian city">Revenue by city data.</canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Transaction Type Split</div>
+      <div class="chart-wrap" style="height:260px"><canvas id="cType" role="img" aria-label="Donut chart showing sale vs rent split">Sale vs Rent distribution.</canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Revenue by Agent</div>
+      <div class="chart-wrap" style="height:280px"><canvas id="cAgent" role="img" aria-label="Horizontal bar chart of revenue per agent">Agent revenue data.</canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Deal Status Breakdown</div>
+      <div class="chart-wrap" style="height:280px"><canvas id="cStatus" role="img" aria-label="Donut chart of completed, pending and cancelled deals">Status distribution.</canvas></div>
+    </div>
+    <div class="chart-card full">
+      <div class="chart-title">Monthly Transaction Volume</div>
+      <div class="chart-wrap" style="height:220px"><canvas id="cMonth" role="img" aria-label="Line chart of transactions per month">Monthly transactions.</canvas></div>
+    </div>
+    <div class="chart-card full">
+      <div class="chart-title">Property Type Distribution</div>
+      <div class="chart-wrap" style="height:200px"><canvas id="cPropType" role="img" aria-label="Bar chart of transactions by property type">Property type data.</canvas></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const RAW = [
+["Lagos",174826048,"Sale",29,"Completed","Chidi Okafor","Detached House",2024,"January"],
+["Lagos",9159757,"Rent",33,"Completed","Fatima Aliyu","Detached House",2022,"November"],
+["Abuja",194077822,"Sale",66,"Pending","Seun Fashola","Detached House",2025,"October"],
+["Enugu",119597696,"Sale",149,"Completed","Aisha Bello","Detached House",2024,"August"],
+["Abuja",5919639,"Rent",150,"Completed","Seun Fashola","Detached House",2022,"May"],
+["Lagos",156609480,"Sale",126,"Completed","Chidi Okafor","Detached House",2024,"May"],
+["Ibadan",174974093,"Sale",102,"Pending","Chidi Okafor","Penthouse",2021,"November"],
+["Lagos",1100181,"Rent",147,"Completed","Seun Fashola","Apartment",2023,"September"],
+["Lagos",2923811,"Rent",22,"Completed","Chidi Okafor","Semi-Detached",2024,"July"],
+["Ibadan",2106107,"Rent",97,"Completed","Kelechi Obi","Duplex",2023,"June"],
+["Port Harcourt",3599013,"Rent",120,"Pending","Fatima Aliyu","Duplex",2021,"June"],
+["Port Harcourt",853804,"Rent",149,"Completed","Kelechi Obi","Apartment",2025,"February"],
+["Ibadan",3294108,"Rent",54,"Completed","Fatima Aliyu","Semi-Detached",2021,"June"],
+["Abuja",5292510,"Rent",83,"Completed","Fatima Aliyu","Detached House",2024,"August"],
+["Abuja",65352998,"Sale",83,"Cancelled","Fatima Aliyu","Bungalow",2024,"February"],
+["Abuja",4994120,"Rent",7,"Completed","Tunde Adeyemi","Semi-Detached",2021,"April"],
+["Enugu",857872,"Rent",85,"Completed","Chidi Okafor","Apartment",2021,"March"],
+["Port Harcourt",19134445,"Sale",34,"Completed","Chidi Okafor","Apartment",2025,"June"],
+["Port Harcourt",39837337,"Sale",180,"Cancelled","Aisha Bello","Bungalow",2023,"March"],
+["Abuja",5221222,"Rent",55,"Completed","Seun Fashola","Detached House",2024,"March"],
+["Ibadan",1678765,"Rent",114,"Completed","Seun Fashola","Bungalow",2022,"January"],
+["Port Harcourt",2582978,"Rent",50,"Completed","Emeka Nwosu","Terrace House",2025,"June"],
+["Ibadan",3168710,"Rent",56,"Pending","Seun Fashola","Semi-Detached",2024,"March"],
+["Enugu",3458719,"Rent",142,"Cancelled","Aisha Bello","Duplex",2024,"September"],
+["Ibadan",90604553,"Sale",88,"Pending","Fatima Aliyu","Detached House",2022,"November"],
+["Abuja",3793271,"Rent",156,"Cancelled","Chidi Okafor","Semi-Detached",2025,"April"],
+["Port Harcourt",56937708,"Sale",166,"Completed","Seun Fashola","Terrace House",2021,"September"],
+["Abuja",2197736,"Rent",127,"Completed","Chidi Okafor","Bungalow",2021,"June"],
+["Abuja",4570906,"Rent",101,"Completed","Fatima Aliyu","Duplex",2022,"June"],
+["Abuja",10508189,"Rent",176,"Completed","Aisha Bello","Penthouse",2023,"May"],
+["Abuja",3919118,"Rent",158,"Completed","Ngozi Eze","Semi-Detached",2025,"February"],
+["Lagos",93765983,"Sale",77,"Completed","Ngozi Eze","Terrace House",2024,"December"],
+["Port Harcourt",99773202,"Sale",95,"Completed","Aisha Bello","Detached House",2023,"December"],
+["Lagos",113226494,"Sale",56,"Completed","Aisha Bello","Duplex",2021,"July"],
+["Lagos",7366620,"Rent",129,"Completed","Tunde Adeyemi","Detached House",2023,"August"],
+["Lagos",3489568,"Rent",113,"Completed","Ngozi Eze","Duplex",2025,"April"],
+["Abuja",147567587,"Sale",26,"Completed","Seun Fashola","Detached House",2024,"February"],
+["Abuja",8695255,"Rent",172,"Completed","Emeka Nwosu","Penthouse",2022,"April"],
+["Port Harcourt",1725879,"Rent",117,"Pending","Emeka Nwosu","Bungalow",2025,"December"],
+["Ibadan",2746438,"Rent",30,"Completed","Seun Fashola","Semi-Detached",2023,"October"],
+["Port Harcourt",23919284,"Sale",7,"Completed","Kelechi Obi","Apartment",2025,"August"],
+["Enugu",1975429,"Rent",162,"Pending","Tunde Adeyemi","Duplex",2024,"July"],
+["Lagos",3312247,"Rent",127,"Completed","Tunde Adeyemi","Terrace House",2023,"September"],
+["Abuja",310987101,"Sale",144,"Completed","Aisha Bello","Penthouse",2023,"July"],
+["Abuja",6998138,"Rent",39,"Completed","Aisha Bello","Detached House",2021,"March"],
+["Abuja",3250859,"Rent",143,"Completed","Aisha Bello","Bungalow",2025,"October"],
+["Lagos",13213209,"Rent",18,"Completed","Chidi Okafor","Penthouse",2021,"March"],
+["Benin City",194421057,"Sale",66,"Completed","Emeka Nwosu","Penthouse",2021,"October"],
+["Port Harcourt",151181164,"Sale",98,"Completed","Emeka Nwosu","Penthouse",2024,"March"],
+["Abuja",188972391,"Sale",17,"Completed","Kelechi Obi","Detached House",2024,"August"],
+["Ibadan",1886284,"Rent",36,"Completed","Fatima Aliyu","Bungalow",2022,"November"],
+["Lagos",91959419,"Sale",34,"Completed","Kelechi Obi","Terrace House",2023,"January"],
+["Lagos",30677400,"Sale",41,"Completed","Aisha Bello","Apartment",2024,"January"],
+["Port Harcourt",2036256,"Rent",55,"Cancelled","Kelechi Obi","Duplex",2022,"July"],
+["Lagos",14141813,"Rent",91,"Pending","Chidi Okafor","Penthouse",2022,"April"],
+["Abuja",9159120,"Rent",39,"Pending","Fatima Aliyu","Penthouse",2021,"April"],
+["Abuja",4322678,"Rent",34,"Completed","Kelechi Obi","Terrace House",2023,"May"],
+["Abuja",3522989,"Rent",32,"Pending","Fatima Aliyu","Terrace House",2023,"June"],
+["Abuja",138292426,"Sale",30,"Completed","Aisha Bello","Detached House",2021,"June"],
+["Benin City",32828114,"Sale",64,"Pending","Aisha Bello","Bungalow",2023,"September"],
+["Abuja",51353298,"Sale",169,"Cancelled","Fatima Aliyu","Bungalow",2025,"February"],
+["Lagos",99719478,"Sale",115,"Completed","Kelechi Obi","Duplex",2024,"September"],
+["Ibadan",81895184,"Sale",61,"Pending","Emeka Nwosu","Detached House",2022,"September"],
+["Ibadan",3127764,"Rent",118,"Completed","Fatima Aliyu","Semi-Detached",2021,"March"],
+["Abuja",3394965,"Rent",34,"Completed","Seun Fashola","Duplex",2025,"September"],
+["Ibadan",52892422,"Sale",72,"Completed","Tunde Adeyemi","Semi-Detached",2021,"October"],
+["Port Harcourt",95114581,"Sale",86,"Completed","Chidi Okafor","Detached House",2021,"June"],
+["Abuja",2545668,"Rent",94,"Cancelled","Fatima Aliyu","Bungalow",2025,"July"],
+["Benin City",797814,"Rent",180,"Completed","Emeka Nwosu","Apartment",2024,"February"],
+["Benin City",4733260,"Rent",39,"Completed","Fatima Aliyu","Detached House",2022,"November"],
+["Abuja",120468388,"Sale",141,"Completed","Aisha Bello","Duplex",2025,"September"],
+["Benin City",1414225,"Rent",127,"Cancelled","Ngozi Eze","Bungalow",2025,"July"],
+["Abuja",1668615,"Rent",38,"Completed","Tunde Adeyemi","Apartment",2023,"November"],
+["Ibadan",31005900,"Sale",173,"Completed","Tunde Adeyemi","Bungalow",2021,"July"],
+["Abuja",265018494,"Sale",80,"Completed","Fatima Aliyu","Penthouse",2025,"May"],
+["Benin City",63695392,"Sale",116,"Completed","Aisha Bello","Semi-Detached",2022,"August"],
+["Ibadan",8991990,"Rent",169,"Completed","Aisha Bello","Penthouse",2021,"March"],
+["Abuja",12727539,"Rent",41,"Completed","Kelechi Obi","Penthouse",2025,"July"],
+["Abuja",1815585,"Rent",174,"Completed","Fatima Aliyu","Apartment",2021,"April"],
+["Port Harcourt",792726,"Rent",90,"Completed","Emeka Nwosu","Apartment",2021,"June"],
+["Lagos",1756068,"Rent",47,"Cancelled","Tunde Adeyemi","Apartment",2024,"October"],
+["Abuja",2684202,"Rent",87,"Completed","Ngozi Eze","Bungalow",2023,"March"],
+["Benin City",1226586,"Rent",122,"Completed","Kelechi Obi","Bungalow",2021,"June"],
+["Abuja",106119579,"Sale",99,"Completed","Aisha Bello","Semi-Detached",2021,"February"],
+["Kano",20726665,"Sale",95,"Completed","Tunde Adeyemi","Apartment",2023,"November"],
+["Abuja",4463705,"Rent",77,"Completed","Emeka Nwosu","Semi-Detached",2024,"February"],
+["Lagos",1722785,"Rent",165,"Completed","Kelechi Obi","Apartment",2023,"May"],
+["Port Harcourt",1890118,"Rent",88,"Pending","Aisha Bello","Terrace House",2025,"January"],
+["Port Harcourt",76522594,"Sale",70,"Cancelled","Tunde Adeyemi","Duplex",2023,"May"],
+["Ibadan",1510067,"Rent",133,"Completed","Kelechi Obi","Terrace House",2022,"July"],
+["Port Harcourt",644119,"Rent",122,"Pending","Emeka Nwosu","Apartment",2023,"October"],
+["Port Harcourt",65608835,"Sale",123,"Completed","Tunde Adeyemi","Semi-Detached",2023,"November"],
+["Abuja",3153304,"Rent",168,"Completed","Kelechi Obi","Bungalow",2025,"January"],
+["Lagos",9288117,"Rent",87,"Completed","Seun Fashola","Penthouse",2023,"June"],
+["Ibadan",51288445,"Sale",171,"Pending","Emeka Nwosu","Terrace House",2024,"October"],
+["Abuja",70102472,"Sale",146,"Completed","Seun Fashola","Terrace House",2024,"October"],
+["Enugu",1197964,"Rent",157,"Completed","Chidi Okafor","Bungalow",2025,"February"],
+["Lagos",4033434,"Rent",80,"Completed","Chidi Okafor","Semi-Detached",2022,"February"],
+["Lagos",6076475,"Rent",34,"Cancelled","Aisha Bello","Detached House",2024,"May"],
+["Port Harcourt",111965478,"Sale",179,"Pending","Tunde Adeyemi","Detached House",2024,"March"],
+["Abuja",40027452,"Sale",156,"Pending","Chidi Okafor","Apartment",2022,"September"],
+["Lagos",5705521,"Rent",129,"Completed","Aisha Bello","Detached House",2021,"October"],
+["Ibadan",113424923,"Sale",58,"Completed","Tunde Adeyemi","Detached House",2023,"November"],
+["Lagos",83734472,"Sale",85,"Pending","Seun Fashola","Terrace House",2024,"October"],
+["Lagos",90193823,"Sale",172,"Cancelled","Aisha Bello","Terrace House",2025,"February"],
+["Port Harcourt",69518191,"Sale",179,"Pending","Seun Fashola","Semi-Detached",2023,"August"],
+["Port Harcourt",1793048,"Rent",15,"Completed","Chidi Okafor","Semi-Detached",2024,"May"],
+["Kano",1405905,"Rent",176,"Completed","Seun Fashola","Bungalow",2021,"October"],
+["Port Harcourt",60568785,"Sale",83,"Pending","Tunde Adeyemi","Duplex",2022,"April"],
+["Lagos",2460595,"Rent",179,"Completed","Chidi Okafor","Terrace House",2023,"February"],
+["Lagos",6536238,"Rent",148,"Completed","Emeka Nwosu","Detached House",2022,"May"],
+["Abuja",1783465,"Rent",156,"Completed","Seun Fashola","Bungalow",2024,"February"],
+["Ibadan",54630019,"Sale",54,"Cancelled","Chidi Okafor","Terrace House",2023,"September"],
+["Lagos",5176967,"Rent",8,"Completed","Seun Fashola","Duplex",2021,"February"],
+["Lagos",99520709,"Sale",27,"Completed","Seun Fashola","Duplex",2023,"March"],
+["Port Harcourt",1818912,"Rent",118,"Completed","Aisha Bello","Semi-Detached",2025,"September"],
+["Enugu",3295268,"Rent",43,"Pending","Seun Fashola","Semi-Detached",2024,"April"],
+["Abuja",35492193,"Sale",159,"Completed","Aisha Bello","Apartment",2024,"June"],
+["Benin City",1369409,"Rent",169,"Completed","Seun Fashola","Bungalow",2023,"February"],
+["Lagos",4393097,"Rent",29,"Completed","Fatima Aliyu","Duplex",2021,"February"],
+["Port Harcourt",58135931,"Sale",118,"Completed","Emeka Nwosu","Duplex",2021,"December"],
+["Abuja",11158806,"Rent",173,"Cancelled","Tunde Adeyemi","Penthouse",2025,"August"],
+["Port Harcourt",2086632,"Rent",158,"Cancelled","Tunde Adeyemi","Bungalow",2022,"February"],
+["Lagos",9316478,"Rent",156,"Completed","Seun Fashola","Detached House",2023,"September"],
+["Lagos",9199554,"Rent",34,"Completed","Emeka Nwosu","Detached House",2023,"June"],
+["Lagos",2485036,"Rent",36,"Pending","Tunde Adeyemi","Bungalow",2021,"June"],
+["Abuja",1606770,"Rent",49,"Cancelled","Ngozi Eze","Apartment",2024,"October"],
+["Lagos",6784011,"Rent",106,"Completed","Ngozi Eze","Detached House",2023,"May"],
+["Ibadan",2706998,"Rent",36,"Completed","Kelechi Obi","Semi-Detached",2024,"April"],
+["Lagos",105798746,"Sale",154,"Completed","Tunde Adeyemi","Duplex",2021,"October"],
+["Benin City",717077,"Rent",150,"Completed","Kelechi Obi","Apartment",2023,"February"],
+["Abuja",37774622,"Sale",133,"Completed","Fatima Aliyu","Apartment",2024,"March"],
+["Abuja",14525157,"Rent",119,"Pending","Fatima Aliyu","Penthouse",2021,"June"],
+["Lagos",89130991,"Sale",81,"Completed","Emeka Nwosu","Semi-Detached",2024,"December"],
+["Abuja",12303919,"Rent",167,"Completed","Kelechi Obi","Penthouse",2022,"July"],
+["Port Harcourt",3507350,"Rent",61,"Completed","Aisha Bello","Detached House",2023,"May"],
+["Port Harcourt",17005407,"Sale",58,"Cancelled","Tunde Adeyemi","Apartment",2023,"May"],
+["Lagos",3873835,"Rent",31,"Completed","Kelechi Obi","Terrace House",2024,"December"],
+["Lagos",9585785,"Rent",33,"Completed","Aisha Bello","Penthouse",2021,"July"],
+["Port Harcourt",1745362,"Rent",62,"Completed","Fatima Aliyu","Bungalow",2023,"June"],
+["Abuja",4856587,"Rent",13,"Pending","Emeka Nwosu","Semi-Detached",2024,"November"],
+["Ibadan",50943100,"Sale",99,"Cancelled","Tunde Adeyemi","Terrace House",2021,"January"],
+["Lagos",56428814,"Sale",135,"Pending","Seun Fashola","Bungalow",2024,"December"],
+["Ibadan",2670204,"Rent",173,"Completed","Fatima Aliyu","Duplex",2024,"July"],
+["Abuja",4739272,"Rent",9,"Completed","Aisha Bello","Detached House",2021,"October"],
+["Abuja",95409771,"Sale",99,"Completed","Tunde Adeyemi","Semi-Detached",2023,"November"],
+["Abuja",1882881,"Rent",16,"Completed","Seun Fashola","Apartment",2025,"October"],
+["Lagos",4925842,"Rent",109,"Completed","Kelechi Obi","Semi-Detached",2021,"April"],
+["Benin City",3326329,"Rent",69,"Completed","Seun Fashola","Duplex",2024,"January"],
+["Abuja",40120405,"Sale",78,"Completed","Ngozi Eze","Apartment",2021,"October"],
+["Lagos",101631201,"Sale",66,"Completed","Ngozi Eze","Duplex",2022,"July"],
+["Port Harcourt",1952204,"Rent",161,"Completed","Aisha Bello","Bungalow",2022,"September"],
+["Port Harcourt",1851204,"Rent",42,"Completed","Chidi Okafor","Semi-Detached",2025,"June"],
+["Abuja",5253429,"Rent",19,"Completed","Seun Fashola","Detached House",2023,"August"],
+["Port Harcourt",70970327,"Sale",112,"Pending","Kelechi Obi","Duplex",2023,"October"],
+["Port Harcourt",6451363,"Rent",135,"Completed","Emeka Nwosu","Penthouse",2024,"March"],
+["Ibadan",1347685,"Rent",75,"Completed","Chidi Okafor","Bungalow",2022,"May"],
+["Abuja",4210000,"Rent",132,"Completed","Chidi Okafor","Semi-Detached",2021,"December"],
+["Lagos",8952153,"Rent",43,"Pending","Aisha Bello","Penthouse",2024,"December"],
+["Abuja",3816500,"Rent",51,"Completed","Emeka Nwosu","Duplex",2024,"April"],
+["Lagos",77120475,"Sale",49,"Completed","Fatima Aliyu","Terrace House",2022,"October"],
+["Port Harcourt",2709749,"Rent",146,"Completed","Kelechi Obi","Terrace House",2022,"December"],
+["Lagos",76844058,"Sale",130,"Pending","Seun Fashola","Terrace House",2024,"June"],
+["Enugu",1133606,"Rent",147,"Pending","Tunde Adeyemi","Bungalow",2024,"March"],
+["Lagos",151841252,"Sale",127,"Completed","Emeka Nwosu","Detached House",2023,"March"],
+["Port Harcourt",43701708,"Sale",177,"Completed","Aisha Bello","Terrace House",2024,"November"],
+["Port Harcourt",8642161,"Rent",165,"Completed","Kelechi Obi","Penthouse",2024,"October"],
+["Abuja",14904274,"Rent",24,"Completed","Seun Fashola","Penthouse",2025,"July"],
+["Kano",192185188,"Sale",105,"Completed","Kelechi Obi","Penthouse",2022,"June"],
+["Abuja",69447609,"Sale",32,"Cancelled","Ngozi Eze","Bungalow",2025,"October"],
+["Ibadan",8599153,"Rent",86,"Pending","Seun Fashola","Penthouse",2021,"May"],
+["Port Harcourt",821011,"Rent",136,"Completed","Fatima Aliyu","Apartment",2023,"August"],
+["Abuja",6489127,"Rent",153,"Pending","Ngozi Eze","Detached House",2021,"November"],
+["Lagos",4675781,"Rent",171,"Completed","Seun Fashola","Semi-Detached",2024,"December"],
+["Abuja",4598447,"Rent",23,"Completed","Emeka Nwosu","Semi-Detached",2023,"September"],
+["Abuja",148788199,"Sale",110,"Completed","Chidi Okafor","Detached House",2023,"May"],
+["Abuja",1898250,"Rent",174,"Completed","Aisha Bello","Apartment",2022,"November"],
+["Kano",67031949,"Sale",142,"Completed","Chidi Okafor","Semi-Detached",2023,"February"],
+["Ibadan",1085090,"Rent",60,"Pending","Tunde Adeyemi","Bungalow",2022,"July"],
+["Enugu",1954398,"Rent",167,"Pending","Ngozi Eze","Duplex",2021,"January"],
+["Abuja",2347900,"Rent",41,"Completed","Kelechi Obi","Bungalow",2025,"December"],
+["Kano",67234588,"Sale",143,"Completed","Chidi Okafor","Semi-Detached",2022,"June"],
+["Ibadan",97761463,"Sale",176,"Completed","Tunde Adeyemi","Detached House",2021,"July"],
+["Benin City",3270598,"Rent",48,"Completed","Kelechi Obi","Duplex",2022,"August"],
+["Ibadan",3657176,"Rent",66,"Completed","Emeka Nwosu","Duplex",2024,"August"],
+["Lagos",1621771,"Rent",91,"Completed","Kelechi Obi","Apartment",2021,"December"],
+["Lagos",28973270,"Sale",130,"Pending","Kelechi Obi","Apartment",2024,"April"],
+["Lagos",3471206,"Rent",93,"Completed","Fatima Aliyu","Bungalow",2024,"October"],
+["Ibadan",8406864,"Rent",68,"Completed","Emeka Nwosu","Penthouse",2022,"October"],
+["Kano",43079171,"Sale",174,"Completed","Seun Fashola","Terrace House",2023,"October"],
+["Abuja",2738064,"Rent",160,"Completed","Aisha Bello","Bungalow",2024,"June"],
+["Lagos",3913382,"Rent",55,"Completed","Seun Fashola","Duplex",2022,"February"],
+["Port Harcourt",2892492,"Rent",19,"Completed","Seun Fashola","Detached House",2025,"February"],
+["Port Harcourt",2012932,"Rent",82,"Completed","Tunde Adeyemi","Terrace House",2022,"December"],
+["Abuja",166451468,"Sale",89,"Pending","Aisha Bello","Detached House",2024,"July"],
+["Lagos",74629722,"Sale",48,"Cancelled","Emeka Nwosu","Terrace House",2025,"May"],
+["Port Harcourt",3698850,"Rent",113,"Cancelled","Aisha Bello","Duplex",2023,"March"],
+["Abuja",3444144,"Rent",138,"Completed","Chidi Okafor","Bungalow",2025,"February"],
+["Lagos",37682592,"Sale",164,"Pending","Emeka Nwosu","Apartment",2024,"July"],
+["Lagos",2857603,"Rent",176,"Completed","Aisha Bello","Terrace House",2022,"March"],
+["Lagos",5880843,"Rent",79,"Completed","Aisha Bello","Detached House",2025,"January"],
+["Enugu",66974899,"Sale",33,"Completed","Seun Fashola","Semi-Detached",2023,"May"],
+["Lagos",315742603,"Sale",106,"Completed","Seun Fashola","Penthouse",2023,"April"],
+["Lagos",6036435,"Rent",84,"Completed","Emeka Nwosu","Detached House",2024,"November"],
+["Abuja",167139909,"Sale",43,"Completed","Chidi Okafor","Detached House",2024,"February"],
+["Lagos",93168297,"Sale",152,"Pending","Kelechi Obi","Duplex",2024,"October"],
+["Abuja",93753513,"Sale",175,"Completed","Tunde Adeyemi","Semi-Detached",2024,"June"],
+["Abuja",269136231,"Sale",85,"Completed","Fatima Aliyu","Penthouse",2023,"January"],
+["Lagos",13799761,"Rent",16,"Completed","Kelechi Obi","Penthouse",2022,"March"],
+["Ibadan",684222,"Rent",52,"Completed","Tunde Adeyemi","Apartment",2021,"November"],
+["Ibadan",138553900,"Sale",89,"Completed","Emeka Nwosu","Penthouse",2024,"August"],
+["Abuja",3165781,"Rent",95,"Completed","Kelechi Obi","Terrace House",2025,"November"],
+["Abuja",4944501,"Rent",36,"Completed","Kelechi Obi","Semi-Detached",2025,"January"],
+["Kano",55831347,"Sale",53,"Completed","Seun Fashola","Duplex",2022,"June"],
+["Kano",5605064,"Rent",94,"Cancelled","Fatima Aliyu","Penthouse",2024,"November"],
+["Ibadan",1836559,"Rent",40,"Cancelled","Chidi Okafor","Semi-Detached",2024,"September"],
+["Lagos",2805003,"Rent",111,"Completed","Chidi Okafor","Bungalow",2024,"January"],
+["Abuja",31021937,"Sale",115,"Completed","Emeka Nwosu","Apartment",2024,"January"],
+["Abuja",108471960,"Sale",37,"Pending","Kelechi Obi","Semi-Detached",2024,"September"],
+["Lagos",227664367,"Sale",101,"Completed","Chidi Okafor","Penthouse",2022,"March"],
+["Lagos",13057390,"Rent",68,"Completed","Tunde Adeyemi","Penthouse",2023,"January"],
+["Lagos",89998093,"Sale",77,"Completed","Ngozi Eze","Semi-Detached",2025,"July"],
+["Ibadan",43216027,"Sale",154,"Completed","Kelechi Obi","Bungalow",2025,"July"],
+["Abuja",32986537,"Sale",139,"Completed","Emeka Nwosu","Apartment",2022,"December"],
+["Abuja",104180885,"Sale",68,"Pending","Ngozi Eze","Semi-Detached",2022,"April"],
+["Benin City",822717,"Rent",133,"Pending","Emeka Nwosu","Apartment",2022,"October"],
+["Ibadan",57841191,"Sale",139,"Completed","Chidi Okafor","Semi-Detached",2021,"September"],
+["Abuja",3507121,"Rent",114,"Pending","Aisha Bello","Terrace House",2022,"March"],
+["Abuja",4914102,"Rent",45,"Completed","Chidi Okafor","Semi-Detached",2025,"February"],
+["Port Harcourt",885923,"Rent",31,"Completed","Aisha Bello","Apartment",2024,"July"],
+["Abuja",15439110,"Rent",97,"Completed","Kelechi Obi","Penthouse",2022,"August"],
+["Benin City",2257290,"Rent",88,"Completed","Emeka Nwosu","Semi-Detached",2022,"October"],
+["Abuja",143015213,"Sale",31,"Completed","Kelechi Obi","Detached House",2021,"July"],
+["Abuja",93861127,"Sale",50,"Completed","Aisha Bello","Duplex",2025,"September"],
+["Kano",2748849,"Rent",145,"Completed","Fatima Aliyu","Terrace House",2023,"September"],
+["Lagos",71883805,"Sale",83,"Completed","Seun Fashola","Bungalow",2023,"September"],
+["Port Harcourt",176020672,"Sale",163,"Pending","Emeka Nwosu","Penthouse",2023,"November"],
+["Benin City",46956359,"Sale",19,"Cancelled","Chidi Okafor","Terrace House",2021,"November"],
+["Ibadan",66270322,"Sale",15,"Completed","Tunde Adeyemi","Duplex",2025,"June"],
+["Lagos",1726944,"Rent",70,"Pending","Chidi Okafor","Apartment",2023,"June"],
+["Enugu",55673557,"Sale",177,"Completed","Fatima Aliyu","Semi-Detached",2021,"April"],
+["Ibadan",3334171,"Rent",165,"Completed","Chidi Okafor","Detached House",2021,"July"],
+["Port Harcourt",109416927,"Sale",17,"Completed","Kelechi Obi","Detached House",2022,"May"],
+["Lagos",1503065,"Rent",7,"Pending","Seun Fashola","Apartment",2023,"July"],
+["Port Harcourt",3097035,"Rent",111,"Completed","Fatima Aliyu","Duplex",2022,"October"],
+["Lagos",1583371,"Rent",72,"Completed","Ngozi Eze","Apartment",2024,"April"],
+["Lagos",14308760,"Rent",62,"Cancelled","Fatima Aliyu","Penthouse",2021,"June"],
+["Port Harcourt",107500514,"Sale",177,"Completed","Fatima Aliyu","Detached House",2024,"December"],
+["Port Harcourt",7503094,"Rent",103,"Pending","Emeka Nwosu","Penthouse",2022,"March"],
+["Abuja",27907117,"Sale",77,"Cancelled","Tunde Adeyemi","Apartment",2025,"August"],
+["Abuja",1680491,"Rent",130,"Completed","Fatima Aliyu","Apartment",2025,"June"],
+["Abuja",4933318,"Rent",17,"Completed","Tunde Adeyemi","Detached House",2023,"December"],
+["Abuja",270488884,"Sale",19,"Completed","Emeka Nwosu","Penthouse",2025,"March"],
+["Abuja",3391520,"Rent",117,"Completed","Fatima Aliyu","Semi-Detached",2022,"June"],
+["Lagos",2528013,"Rent",66,"Completed","Aisha Bello","Bungalow",2025,"August"],
+["Abuja",2816895,"Rent",73,"Completed","Tunde Adeyemi","Terrace House",2023,"December"],
+["Benin City",36196490,"Sale",176,"Pending","Aisha Bello","Bungalow",2022,"July"],
+["Lagos",3244027,"Rent",85,"Completed","Seun Fashola","Duplex",2023,"December"],
+["Lagos",5179288,"Rent",42,"Completed","Seun Fashola","Semi-Detached",2024,"September"],
+["Lagos",4609692,"Rent",41,"Completed","Tunde Adeyemi","Semi-Detached",2023,"December"],
+["Port Harcourt",55758871,"Sale",40,"Completed","Emeka Nwosu","Terrace House",2021,"August"],
+["Lagos",5056313,"Rent",128,"Completed","Ngozi Eze","Semi-Detached",2023,"October"],
+["Lagos",4416953,"Rent",110,"Pending","Seun Fashola","Terrace House",2023,"May"],
+["Enugu",1859298,"Rent",84,"Pending","Emeka Nwosu","Terrace House",2023,"March"],
+["Lagos",4346368,"Rent",122,"Completed","Kelechi Obi","Duplex",2022,"October"],
+["Abuja",1344211,"Rent",18,"Pending","Aisha Bello","Apartment",2023,"February"],
+["Lagos",986902,"Rent",134,"Completed","Chidi Okafor","Apartment",2023,"October"],
+["Enugu",1279627,"Rent",174,"Completed","Tunde Adeyemi","Bungalow",2021,"April"],
+["Lagos",192896699,"Sale",155,"Completed","Chidi Okafor","Detached House",2025,"March"],
+["Lagos",1378413,"Rent",60,"Completed","Fatima Aliyu","Apartment",2022,"March"],
+["Ibadan",4920730,"Rent",7,"Completed","Kelechi Obi","Detached House",2022,"February"],
+["Abuja",164217432,"Sale",8,"Completed","Aisha Bello","Detached House",2022,"October"],
+["Lagos",161458132,"Sale",112,"Cancelled","Chidi Okafor","Detached House",2025,"July"],
+["Abuja",280382090,"Sale",54,"Completed","Emeka Nwosu","Penthouse",2023,"March"],
+["Abuja",106861002,"Sale",130,"Cancelled","Tunde Adeyemi","Duplex",2021,"February"],
+["Lagos",3481408,"Rent",18,"Completed","Fatima Aliyu","Duplex",2022,"September"],
+["Abuja",56105108,"Sale",77,"Completed","Fatima Aliyu","Bungalow",2021,"November"],
+["Abuja",3085102,"Rent",179,"Completed","Seun Fashola","Semi-Detached",2023,"August"],
+["Port Harcourt",57805085,"Sale",171,"Pending","Kelechi Obi","Semi-Detached",2024,"November"],
+["Ibadan",20689933,"Sale",79,"Pending","Tunde Adeyemi","Apartment",2021,"December"],
+["Enugu",2319817,"Rent",158,"Completed","Seun Fashola","Duplex",2024,"November"],
+["Abuja",112144157,"Sale",160,"Completed","Seun Fashola","Semi-Detached",2021,"May"],
+["Enugu",33561528,"Sale",88,"Completed","Emeka Nwosu","Bungalow",2025,"December"],
+["Lagos",8731380,"Rent",117,"Pending","Seun Fashola","Detached House",2022,"April"],
+["Port Harcourt",54697030,"Sale",11,"Completed","Kelechi Obi","Duplex",2024,"August"],
+["Port Harcourt",51896419,"Sale",67,"Pending","Emeka Nwosu","Terrace House",2025,"October"],
+["Lagos",5046137,"Rent",163,"Completed","Kelechi Obi","Detached House",2025,"December"],
+["Ibadan",2823237,"Rent",82,"Completed","Chidi Okafor","Terrace House",2025,"June"],
+["Benin City",17614898,"Sale",78,"Completed","Emeka Nwosu","Apartment",2025,"May"],
+["Lagos",15345295,"Rent",46,"Pending","Seun Fashola","Penthouse",2024,"May"],
+["Lagos",33816461,"Sale",143,"Completed","Seun Fashola","Apartment",2025,"March"],
+["Enugu",94462748,"Sale",32,"Completed","Seun Fashola","Detached House",2022,"July"],
+["Lagos",73145789,"Sale",71,"Completed","Chidi Okafor","Terrace House",2022,"August"],
+["Port Harcourt",5460484,"Rent",54,"Completed","Kelechi Obi","Detached House",2024,"November"],
+["Lagos",71851399,"Sale",132,"Cancelled","Ngozi Eze","Terrace House",2021,"May"],
+["Lagos",27868942,"Sale",45,"Completed","Chidi Okafor","Apartment",2023,"October"],
+["Ibadan",1444762,"Rent",130,"Completed","Aisha Bello","Terrace House",2024,"November"],
+["Lagos",102680114,"Sale",168,"Completed","Kelechi Obi","Semi-Detached",2021,"August"],
+["Enugu",83022438,"Sale",93,"Pending","Chidi Okafor","Detached House",2021,"April"],
+["Ibadan",108529797,"Sale",10,"Completed","Chidi Okafor","Detached House",2021,"September"],
+["Lagos",233563453,"Sale",154,"Completed","Aisha Bello","Penthouse",2024,"November"],
+["Enugu",2111938,"Rent",168,"Completed","Tunde Adeyemi","Duplex",2025,"October"],
+["Abuja",3866471,"Rent",163,"Completed","Tunde Adeyemi","Duplex",2021,"December"],
+["Abuja",1816162,"Rent",136,"Completed","Ngozi Eze","Apartment",2024,"January"],
+["Lagos",153459984,"Sale",123,"Completed","Chidi Okafor","Detached House",2025,"July"],
+["Abuja",90604028,"Sale",65,"Completed","Seun Fashola","Terrace House",2022,"October"],
+["Port Harcourt",44648004,"Sale",92,"Completed","Chidi Okafor","Bungalow",2022,"February"],
+["Benin City",2710456,"Rent",132,"Pending","Ngozi Eze","Duplex",2023,"December"],
+["Abuja",5405902,"Rent",127,"Pending","Chidi Okafor","Semi-Detached",2021,"March"],
+["Abuja",108358970,"Sale",48,"Pending","Chidi Okafor","Duplex",2022,"September"],
+["Port Harcourt",110510899,"Sale",163,"Completed","Ngozi Eze","Detached House",2024,"November"],
+["Port Harcourt",60160983,"Sale",59,"Completed","Aisha Bello","Semi-Detached",2025,"May"],
+["Abuja",34143851,"Sale",38,"Completed","Emeka Nwosu","Apartment",2025,"August"],
+["Abuja",34077273,"Sale",59,"Completed","Chidi Okafor","Apartment",2025,"November"],
+["Lagos",1376399,"Rent",174,"Completed","Aisha Bello","Apartment",2022,"December"],
+["Abuja",4221737,"Rent",49,"Completed","Tunde Adeyemi","Duplex",2023,"July"],
+["Lagos",87065262,"Sale",44,"Completed","Tunde Adeyemi","Terrace House",2022,"December"],
+["Abuja",8422016,"Rent",120,"Completed","Fatima Aliyu","Detached House",2025,"February"],
+["Abuja",1191590,"Rent",78,"Completed","Fatima Aliyu","Apartment",2025,"April"],
+["Port Harcourt",2635835,"Rent",95,"Completed","Kelechi Obi","Duplex",2022,"August"],
+["Abuja",3392683,"Rent",103,"Completed","Seun Fashola","Bungalow",2024,"April"],
+["Enugu",50286729,"Sale",125,"Completed","Chidi Okafor","Terrace House",2025,"February"],
+["Lagos",1541539,"Rent",118,"Pending","Kelechi Obi","Apartment",2024,"March"],
+["Port Harcourt",95468676,"Sale",98,"Completed","Emeka Nwosu","Detached House",2024,"July"],
+["Abuja",1108525,"Rent",102,"Pending","Seun Fashola","Apartment",2022,"July"],
+["Lagos",1278784,"Rent",42,"Pending","Aisha Bello","Apartment",2023,"January"],
+["Lagos",1730325,"Rent",117,"Completed","Fatima Aliyu","Apartment",2025,"April"],
+["Lagos",282110716,"Sale",54,"Completed","Chidi Okafor","Penthouse",2022,"February"],
+["Lagos",13383330,"Rent",50,"Cancelled","Chidi Okafor","Penthouse",2022,"August"],
+["Port Harcourt",55419061,"Sale",38,"Completed","Tunde Adeyemi","Terrace House",2022,"October"],
+["Port Harcourt",2610578,"Rent",116,"Completed","Fatima Aliyu","Semi-Detached",2022,"August"],
+["Port Harcourt",1963742,"Rent",93,"Completed","Seun Fashola","Terrace House",2022,"February"],
+["Ibadan",53215452,"Sale",66,"Completed","Tunde Adeyemi","Semi-Detached",2023,"October"],
+["Benin City",65357183,"Sale",82,"Completed","Kelechi Obi","Semi-Detached",2022,"February"],
+["Port Harcourt",57786244,"Sale",132,"Completed","Emeka Nwosu","Terrace House",2021,"December"],
+["Abuja",4133541,"Rent",89,"Completed","Chidi Okafor","Terrace House",2022,"August"],
+["Abuja",73620209,"Sale",158,"Completed","Fatima Aliyu","Terrace House",2022,"October"],
+["Lagos",7349254,"Rent",153,"Completed","Kelechi Obi","Detached House",2022,"October"],
+["Lagos",8170744,"Rent",109,"Pending","Fatima Aliyu","Penthouse",2024,"March"],
+["Ibadan",148804927,"Sale",71,"Completed","Kelechi Obi","Penthouse",2023,"April"],
+["Lagos",82827204,"Sale",83,"Pending","Seun Fashola","Semi-Detached",2024,"November"],
+["Abuja",33659076,"Sale",118,"Completed","Chidi Okafor","Apartment",2024,"February"],
+["Lagos",1820492,"Rent",100,"Completed","Fatima Aliyu","Apartment",2023,"April"],
+["Abuja",9500465,"Rent",51,"Completed","Emeka Nwosu","Penthouse",2021,"August"],
+["Port Harcourt",2124319,"Rent",85,"Completed","Chidi Okafor","Terrace House",2023,"January"],
+["Port Harcourt",42532806,"Sale",67,"Completed","Tunde Adeyemi","Terrace House",2025,"August"],
+["Abuja",2659775,"Rent",57,"Completed","Ngozi Eze","Terrace House",2023,"August"],
+["Kano",1159277,"Rent",56,"Pending","Emeka Nwosu","Apartment",2021,"November"],
+["Lagos",248178392,"Sale",44,"Completed","Tunde Adeyemi","Penthouse",2023,"July"],
+["Enugu",5047091,"Rent",29,"Completed","Aisha Bello","Detached House",2025,"January"],
+["Lagos",1613158,"Rent",117,"Completed","Aisha Bello","Apartment",2025,"February"],
+["Lagos",12689331,"Rent",34,"Pending","Tunde Adeyemi","Penthouse",2024,"July"],
+["Ibadan",5045180,"Rent",177,"Completed","Chidi Okafor","Detached House",2021,"January"],
+["Abuja",7792566,"Rent",163,"Completed","Aisha Bello","Detached House",2023,"February"],
+["Ibadan",1747819,"Rent",128,"Completed","Ngozi Eze","Bungalow",2024,"September"],
+["Abuja",3027639,"Rent",43,"Pending","Chidi Okafor","Terrace House",2022,"February"],
+["Abuja",4476867,"Rent",14,"Completed","Aisha Bello","Duplex",2025,"January"],
+["Lagos",12823095,"Rent",104,"Completed","Seun Fashola","Penthouse",2023,"February"],
+["Lagos",88663080,"Sale",144,"Completed","Seun Fashola","Semi-Detached",2024,"April"],
+["Abuja",283552403,"Sale",177,"Pending","Chidi Okafor","Penthouse",2021,"October"],
+["Lagos",15000631,"Rent",52,"Pending","Seun Fashola","Penthouse",2025,"May"],
+["Abuja",1925795,"Rent",155,"Pending","Chidi Okafor","Bungalow",2022,"October"],
+["Lagos",2415855,"Rent",180,"Pending","Chidi Okafor","Bungalow",2023,"May"],
+["Lagos",115556353,"Sale",178,"Completed","Kelechi Obi","Duplex",2023,"February"],
+["Ibadan",61407355,"Sale",31,"Pending","Tunde Adeyemi","Duplex",2025,"March"],
+["Port Harcourt",5106871,"Rent",156,"Completed","Fatima Aliyu","Penthouse",2025,"September"],
+["Kano",3554784,"Rent",28,"Cancelled","Emeka Nwosu","Duplex",2021,"March"],
+["Port Harcourt",3668703,"Rent",162,"Completed","Ngozi Eze","Duplex",2022,"December"],
+["Abuja",80056691,"Sale",73,"Completed","Tunde Adeyemi","Semi-Detached",2022,"June"],
+["Abuja",158788435,"Sale",87,"Cancelled","Seun Fashola","Detached House",2021,"November"],
+["Port Harcourt",23224567,"Sale",64,"Completed","Fatima Aliyu","Apartment",2021,"October"],
+["Abuja",111802975,"Sale",53,"Completed","Seun Fashola","Semi-Detached",2023,"March"],
+["Lagos",7987762,"Rent",119,"Cancelled","Kelechi Obi","Detached House",2022,"January"],
+["Abuja",319266162,"Sale",154,"Completed","Emeka Nwosu","Penthouse",2021,"December"],
+["Lagos",102924338,"Sale",95,"Completed","Chidi Okafor","Semi-Detached",2025,"March"],
+["Port Harcourt",58349667,"Sale",145,"Pending","Fatima Aliyu","Terrace House",2022,"May"],
+["Benin City",6377048,"Rent",34,"Completed","Tunde Adeyemi","Penthouse",2022,"December"],
+["Lagos",90306765,"Sale",64,"Completed","Aisha Bello","Terrace House",2022,"May"],
+["Port Harcourt",18516536,"Sale",41,"Completed","Aisha Bello","Apartment",2021,"March"],
+["Port Harcourt",1864351,"Rent",12,"Completed","Aisha Bello","Semi-Detached",2021,"August"],
+["Abuja",87583453,"Sale",74,"Cancelled","Ngozi Eze","Semi-Detached",2021,"August"],
+["Port Harcourt",17141290,"Sale",30,"Pending","Seun Fashola","Apartment",2022,"February"],
+["Abuja",30835592,"Sale",53,"Completed","Chidi Okafor","Apartment",2021,"April"],
+["Ibadan",57475354,"Sale",99,"Pending","Aisha Bello","Bungalow",2025,"February"],
+["Lagos",4653721,"Rent",26,"Cancelled","Aisha Bello","Semi-Detached",2021,"July"],
+["Abuja",11298161,"Rent",37,"Cancelled","Fatima Aliyu","Penthouse",2025,"January"],
+["Lagos",13140615,"Rent",138,"Cancelled","Tunde Adeyemi","Penthouse",2025,"November"],
+["Kano",2887330,"Rent",141,"Completed","Ngozi Eze","Duplex",2025,"January"],
+["Abuja",110639148,"Sale",173,"Completed","Aisha Bello","Duplex",2021,"January"],
+["Abuja",7194979,"Rent",156,"Completed","Seun Fashola","Detached House",2025,"November"],
+["Port Harcourt",3652162,"Rent",133,"Completed","Tunde Adeyemi","Duplex",2021,"July"],
+["Lagos",235926325,"Sale",69,"Completed","Seun Fashola","Penthouse",2023,"May"],
+["Abuja",303409645,"Sale",34,"Completed","Aisha Bello","Penthouse",2021,"January"],
+["Lagos",2787897,"Rent",33,"Completed","Fatima Aliyu","Semi-Detached",2021,"April"],
+["Lagos",96141754,"Sale",98,"Completed","Aisha Bello","Terrace House",2022,"August"],
+["Lagos",8776882,"Rent",134,"Completed","Emeka Nwosu","Detached House",2022,"July"],
+["Port Harcourt",88583897,"Sale",97,"Completed","Seun Fashola","Detached House",2023,"February"],
+["Enugu",169724540,"Sale",63,"Pending","Ngozi Eze","Penthouse",2025,"May"],
+["Abuja",8924293,"Rent",148,"Cancelled","Seun Fashola","Penthouse",2025,"October"],
+["Port Harcourt",37466302,"Sale",47,"Completed","Aisha Bello","Bungalow",2024,"May"],
+["Ibadan",4158644,"Rent",10,"Completed","Tunde Adeyemi","Detached House",2024,"August"],
+["Ibadan",2130972,"Rent",103,"Cancelled","Tunde Adeyemi","Bungalow",2023,"December"],
+["Ibadan",1139045,"Rent",172,"Completed","Emeka Nwosu","Bungalow",2023,"January"],
+["Lagos",34796987,"Sale",15,"Completed","Fatima Aliyu","Apartment",2024,"July"],
+["Ibadan",72388014,"Sale",91,"Completed","Fatima Aliyu","Duplex",2021,"July"],
+["Lagos",182986504,"Sale",43,"Pending","Tunde Adeyemi","Detached House",2024,"September"],
+["Abuja",4888730,"Rent",31,"Pending","Tunde Adeyemi","Duplex",2023,"October"],
+["Abuja",103217843,"Sale",73,"Cancelled","Emeka Nwosu","Semi-Detached",2023,"August"],
+["Port Harcourt",1170169,"Rent",136,"Completed","Chidi Okafor","Bungalow",2023,"April"],
+["Port Harcourt",7048745,"Rent",126,"Completed","Tunde Adeyemi","Penthouse",2024,"January"],
+["Ibadan",24588269,"Sale",170,"Completed","Chidi Okafor","Apartment",2021,"October"],
+["Abuja",2235703,"Rent",83,"Pending","Kelechi Obi","Bungalow",2021,"June"],
+["Port Harcourt",1950757,"Rent",153,"Completed","Chidi Okafor","Terrace House",2024,"November"],
+["Lagos",3558418,"Rent",122,"Cancelled","Tunde Adeyemi","Terrace House",2021,"January"],
+["Abuja",4275200,"Rent",11,"Completed","Emeka Nwosu","Duplex",2023,"January"],
+["Port Harcourt",36094511,"Sale",175,"Completed","Seun Fashola","Bungalow",2025,"September"],
+["Ibadan",2035943,"Rent",123,"Completed","Fatima Aliyu","Semi-Detached",2025,"May"],
+["Ibadan",42674172,"Sale",113,"Completed","Chidi Okafor","Bungalow",2025,"June"],
+["Enugu",56185567,"Sale",116,"Completed","Seun Fashola","Terrace House",2024,"March"],
+["Ibadan",1169220,"Rent",30,"Completed","Seun Fashola","Apartment",2022,"February"],
+["Port Harcourt",4759265,"Rent",83,"Completed","Ngozi Eze","Detached House",2022,"March"],
+["Benin City",17742217,"Sale",99,"Cancelled","Ngozi Eze","Apartment",2023,"October"],
+["Port Harcourt",1402655,"Rent",175,"Completed","Chidi Okafor","Bungalow",2022,"January"]
+];
+
+const months = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+const agents = ["Chidi Okafor","Aisha Bello","Seun Fashola","Fatima Aliyu","Kelechi Obi","Tunde Adeyemi","Emeka Nwosu","Ngozi Eze"];
+const propTypes = ["Apartment","Duplex","Bungalow","Terrace House","Semi-Detached","Detached House","Penthouse"];
+const cities = ["Lagos","Abuja","Port Harcourt","Ibadan","Kano","Enugu","Benin City"];
+
+const PURPLE = ['#9b4dff','#7a3dcc','#5e2e99','#421f66','#6a2fd0','#b06eff','#c890ff'];
+const TEAL = '#4ecdc4';
+
+let chartCity, chartType, chartAgent, chartStatus, chartMonth, chartPropType;
+
+function filtered(){
+  const city = document.getElementById('fCity').value;
+  const year = document.getElementById('fYear').value;
+  const type = document.getElementById('fType').value;
+  const prop = document.getElementById('fProp').value;
+  return RAW.filter(r =>
+    (city === 'all' || r[0] === city) &&
+    (year === 'all' || r[7] == year) &&
+    (type === 'all' || r[2] === type) &&
+    (prop === 'all' || r[6] === prop)
+  );
+}
+
+function fmt(n){ return '₦' + (n >= 1e9 ? (n/1e9).toFixed(1)+'B' : n >= 1e6 ? (n/1e6).toFixed(1)+'M' : n.toLocaleString()); }
+
+function updateCharts(){
+  const data = filtered();
+  const total = data.reduce((s,r)=>s+r[1],0);
+  const completed = data.filter(r=>r[4]==='Completed').length;
+  const avgDays = data.length ? Math.round(data.reduce((s,r)=>s+r[3],0)/data.length) : 0;
+
+  document.getElementById('kRevenue').textContent = fmt(total);
+  document.getElementById('kCount').textContent = data.length;
+  document.getElementById('kComplete').textContent = data.length ? (completed/data.length*100).toFixed(1)+'%' : '0%';
+  document.getElementById('kAvg').textContent = data.length ? fmt(Math.round(total/data.length)) : '₦0';
+  document.getElementById('kDays').textContent = avgDays;
+
+  const city = document.getElementById('fCity').value;
+  const year = document.getElementById('fYear').value;
+  document.getElementById('subtitle').textContent = `${city==='all'?'All Cities':city} · ${year==='all'?'All Years':year} · ${data.length} Transactions`;
+
+  // City chart
+  const cityRev = Object.fromEntries(cities.map(c=>[c,0]));
+  data.forEach(r=>{ if(cityRev[r[0]]!==undefined) cityRev[r[0]]+=r[1]; });
+  const cityLabels = cities.filter(c=>cityRev[c]>0);
+  const cityData = cityLabels.map(c=>Math.round(cityRev[c]/1e6));
+  chartCity.data.labels = cityLabels;
+  chartCity.data.datasets[0].data = cityData;
+  chartCity.update();
+
+  // Type chart
+  const sale = data.filter(r=>r[2]==='Sale').length;
+  const rent = data.filter(r=>r[2]==='Rent').length;
+  chartType.data.datasets[0].data = [sale, rent];
+  chartType.data.labels = [`Sale (${sale})`, `Rent (${rent})`];
+  chartType.update();
+
+  // Agent chart
+  const agentRev = Object.fromEntries(agents.map(a=>[a,0]));
+  data.forEach(r=>{ if(agentRev[r[5]]!==undefined) agentRev[r[5]]+=r[1]; });
+  const sortedAgents = [...agents].sort((a,b)=>agentRev[b]-agentRev[a]);
+  chartAgent.data.labels = sortedAgents;
+  chartAgent.data.datasets[0].data = sortedAgents.map(a=>Math.round(agentRev[a]/1e6));
+  chartAgent.update();
+
+  // Status chart
+  const statuses = ['Completed','Pending','Cancelled'];
+  const statusCounts = statuses.map(s=>data.filter(r=>r[4]===s).length);
+  chartStatus.data.datasets[0].data = statusCounts;
+  chartStatus.data.labels = statuses.map((s,i)=>`${s} (${statusCounts[i]})`);
+  chartStatus.update();
+
+  // Month chart
+  const monthCounts = months.map(m=>data.filter(r=>r[8]===m).length);
+  chartMonth.data.datasets[0].data = monthCounts;
+  chartMonth.update();
+
+  // Property type chart
+  const propCounts = propTypes.map(p=>data.filter(r=>r[6]===p).length);
+  chartPropType.data.datasets[0].data = propCounts;
+  chartPropType.update();
+}
+
+window.addEventListener('load', ()=>{
+  const base = { responsive:true, maintainAspectRatio:false };
+
+  chartCity = new Chart(document.getElementById('cCity'), {
+    type:'bar',
+    data:{ labels:[], datasets:[{ data:[], backgroundColor:PURPLE, borderRadius:4 }] },
+    options:{ ...base, plugins:{ legend:{display:false} }, scales:{
+      x:{ ticks:{color:'rgba(255,255,255,0.6)',font:{size:11}}, grid:{display:false} },
+      y:{ ticks:{color:'rgba(255,255,255,0.5)',font:{size:10}, callback:v=>v>=1000?v/1000+'B':v+'M'}, grid:{color:'rgba(255,255,255,0.05)'} }
+    }}
+  });
+
+  chartType = new Chart(document.getElementById('cType'), {
+    type:'doughnut',
+    data:{ labels:[], datasets:[{ data:[], backgroundColor:['#9b4dff','#4ecdc4'], borderWidth:0, hoverOffset:6 }] },
+    options:{ ...base, plugins:{ legend:{ position:'bottom', labels:{color:'rgba(255,255,255,0.7)',padding:16,font:{size:12}} } } }
+  });
+
+  chartAgent = new Chart(document.getElementById('cAgent'), {
+    type:'bar',
+    data:{ labels:[], datasets:[{ data:[], backgroundColor:'#7a3dcc', borderRadius:4, indexAxis:'y' }] },
+    options:{ ...base, indexAxis:'y', plugins:{ legend:{display:false} }, scales:{
+      x:{ ticks:{color:'rgba(255,255,255,0.5)',font:{size:10},callback:v=>v+'M'}, grid:{color:'rgba(255,255,255,0.05)'} },
+      y:{ ticks:{color:'rgba(255,255,255,0.6)',font:{size:11}}, grid:{display:false} }
+    }}
+  });
+
+  chartStatus = new Chart(document.getElementById('cStatus'), {
+    type:'doughnut',
+    data:{ labels:[], datasets:[{ data:[], backgroundColor:['#4ecdc4','#f7dc6f','#e74c3c'], borderWidth:0, hoverOffset:6 }] },
+    options:{ ...base, plugins:{ legend:{ position:'bottom', labels:{color:'rgba(255,255,255,0.7)',padding:16,font:{size:12}} } } }
+  });
+
+  chartMonth = new Chart(document.getElementById('cMonth'), {
+    type:'line',
+    data:{ labels:months.map(m=>m.slice(0,3)), datasets:[{ data:[], borderColor:'#9b4dff', backgroundColor:'rgba(155,77,255,0.15)', fill:true, tension:0.4, pointBackgroundColor:'#9b4dff', pointRadius:4 }] },
+    options:{ ...base, plugins:{ legend:{display:false} }, scales:{
+      x:{ ticks:{color:'rgba(255,255,255,0.6)',font:{size:11}}, grid:{color:'rgba(255,255,255,0.05)'} },
+      y:{ ticks:{color:'rgba(255,255,255,0.5)',font:{size:10}}, grid:{color:'rgba(255,255,255,0.05)'} }
+    }}
+  });
+
+  chartPropType = new Chart(document.getElementById('cPropType'), {
+    type:'bar',
+    data:{ labels:propTypes, datasets:[{ data:[], backgroundColor:PURPLE, borderRadius:4 }] },
+    options:{ ...base, plugins:{ legend:{display:false} }, scales:{
+      x:{ ticks:{color:'rgba(255,255,255,0.6)',font:{size:11}}, grid:{display:false} },
+      y:{ ticks:{color:'rgba(255,255,255,0.5)',font:{size:10}}, grid:{color:'rgba(255,255,255,0.05)'} }
+    }}
+  });
+
+  updateCharts();
+});
+</script>
+</body>
+</html>
